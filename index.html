@@ -99,17 +99,28 @@
       position: relative;
     }
 
-    .copy-btn {
+    .copy-btn,
+    .download-btn {
       position: absolute;
       top: 12px;
-      right: 12px;
-      background: #0066ff;
-      color: white;
       border: none;
-      padding: 6px 12px;
+      padding: 6px 14px;
       border-radius: 4px;
       font-size: 0.9rem;
       cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .copy-btn {
+      right: 12px;
+      background: #0066ff;
+      color: white;
+    }
+
+    .download-btn {
+      right: 120px;
+      background: #22c55e;
+      color: white;
     }
 
     .file-upload {
@@ -138,6 +149,28 @@
 
       summary {
         padding: 10px 12px;
+      }
+
+      .copy-btn,
+      .download-btn {
+        position: static;
+        margin: 4px 4px 0 0;
+        display: inline-block;
+      }
+
+      .result-container {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .result-container textarea {
+        order: 1;
+      }
+
+      .result-container .buttons-wrapper {
+        order: 2;
+        margin-top: 8px;
+        padding: 0 12px;
       }
     }
   </style>
@@ -179,12 +212,15 @@
       <summary>4. Result JSON</summary>
       <div class="result-container">
         <textarea id="result" readonly></textarea>
-        <button class="copy-btn" onclick="copyResult()">Copy Result</button>
+        <div class="buttons-wrapper" style="display:flex; gap:8px; padding:0 12px 12px;">
+          <button class="download-btn" onclick="downloadResult()">↓ Download JSON</button>
+          <button class="copy-btn" onclick="copyResult()">Copy Result</button>
+        </div>
       </div>
     </details>
 
     <p style="text-align:center; margin-top:20px; color:#666; font-size:0.85rem;">
-      Deep recursive replacement • keys + values • all data types • substring on strings • file upload supported
+      Deep recursive replacement • keys + values • all data types • substring on strings • file upload &amp; download
     </p>
   </div>
 
@@ -201,20 +237,18 @@
         document.getElementById('error').textContent = '❌ Could not read file';
       };
       reader.readAsText(file);
-
-      // Reset file input so same file can be selected again
       e.target.value = '';
     }
 
     function applyValueReplace(val, valueMap) {
       if (!valueMap) return val;
 
-      // 1. Exact match first (works for number, string, boolean, null, etc.)
+      // Exact match first (any data type)
       if (Object.prototype.hasOwnProperty.call(valueMap, val)) {
         return valueMap[val];
       }
 
-      // 2. If it's a string → apply substring replacements (global, sequential)
+      // Substring replace for strings
       if (typeof val === 'string') {
         let newVal = val;
         for (const [find, repl] of Object.entries(valueMap)) {
@@ -229,29 +263,23 @@
     }
 
     function deepReplace(obj, keyMap, valueMap) {
-      // Primitive (number, string, boolean, null, undefined)
       if (obj === null || typeof obj !== "object") {
         return applyValueReplace(obj, valueMap);
       }
 
-      // Array
       if (Array.isArray(obj)) {
         return obj.map(item => deepReplace(item, keyMap, valueMap));
       }
 
-      // Object – single pass
       const result = {};
       for (const key in obj) {
         if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
 
         let newValue;
         if (keyMap && Object.prototype.hasOwnProperty.call(keyMap, key)) {
-          // Key match → replace whole value
           newValue = keyMap[key];
-          // Then apply value mapping (exact + substring if string)
           newValue = applyValueReplace(newValue, valueMap);
         } else {
-          // No key match → recurse
           newValue = deepReplace(obj[key], keyMap, valueMap);
         }
         result[key] = newValue;
@@ -318,6 +346,21 @@
         resultEl.placeholder = '✅ Copied!';
         setTimeout(() => { resultEl.placeholder = orig || ''; }, 1200);
       });
+    }
+
+    function downloadResult() {
+      const resultEl = document.getElementById('result');
+      if (!resultEl.value) return;
+
+      const blob = new Blob([resultEl.value], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'replaced.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function clearAll() {
