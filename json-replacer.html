@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON Deep Replacer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f8f9fa;
+      color: #222;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+    }
+
+    details {
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    summary {
+      padding: 12px 16px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      user-select: none;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      padding: 12px 16px;
+      border: none;
+      font-family: ui-monospace, monospace;
+      font-size: 15px;
+      line-height: 1.4;
+      resize: vertical;
+      overflow: auto;
+    }
+
+    textarea:focus {
+      outline: none;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+
+    .btn-primary {
+      background: #0066ff;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #ddd;
+      color: #222;
+    }
+
+    .buttons {
+      margin: 16px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #error {
+      color: #d32f2f;
+      margin: 8px 0;
+      min-height: 22px;
+      font-size: 0.9rem;
+    }
+
+    .result-container {
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #0066ff;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+
+      textarea {
+        min-height: 140px;
+        font-size: 14px;
+      }
+
+      h1 {
+        font-size: 1.3rem;
+      }
+
+      summary {
+        padding: 10px 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>JSON Deep Replacer</h1>
+
+    <details open>
+      <summary>1. Original JSON</summary>
+      <textarea id="original" placeholder='Paste your original JSON here...'></textarea>
+    </details>
+
+    <details open>
+      <summary>2. Key Replace Mapping (JSON object)</summary>
+      <textarea id="mapping" rows="3" placeholder='{"cde":"abc","abc":123}'></textarea>
+    </details>
+
+    <details open>
+      <summary>3. Value Replace Mapping (JSON object)<br><small style="font-weight:normal;color:#666;">Exact match for
+          any type + substring replace for strings (e.g. {"a":"b"} turns "aabb" → "bbbb")</small></summary>
+      <textarea id="valueMapping" rows="3"
+        placeholder='{"555":"REPLACED_555","a":"b",true:"YES",false:"NO",null:"EMPTY","hello":"WORLD"}'></textarea>
+    </details>
+
+    <div class="buttons">
+      <button class="btn btn-primary" onclick="processReplace()">Replace All</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear All</button>
+    </div>
+
+    <div id="error"></div>
+
+    <details open>
+      <summary>4. Result JSON</summary>
+      <div class="result-container">
+        <textarea id="result" readonly></textarea>
+        <button class="copy-btn" onclick="copyResult()">Copy Result</button>
+      </div>
+    </details>
+
+    <p style="text-align:center; margin-top:20px; color:#666; font-size:0.85rem;">
+      Deep recursive replacement • keys + values • all data types • substring on strings • objects • arrays • nested
+    </p>
+  </div>
+
+  <script>
+    function applyValueReplace(val, valueMap) {
+      if (!valueMap) return val;
+
+      // 1. Exact match first (works for number, string, boolean, null, etc.)
+      if (Object.prototype.hasOwnProperty.call(valueMap, val)) {
+        return valueMap[val];
+      }
+
+      // 2. If it's a string → apply substring replacements (global, sequential)
+      if (typeof val === 'string') {
+        let newVal = val;
+        for (const [find, repl] of Object.entries(valueMap)) {
+          if (typeof find === 'string' && typeof repl === 'string' && find !== '') {
+            newVal = newVal.split(find).join(repl);
+          }
+        }
+        return newVal;
+      }
+
+      return val;
+    }
+
+    function deepReplace(obj, keyMap, valueMap) {
+      // Primitive (number, string, boolean, null, undefined)
+      if (obj === null || typeof obj !== "object") {
+        return applyValueReplace(obj, valueMap);
+      }
+
+      // Array
+      if (Array.isArray(obj)) {
+        return obj.map(item => deepReplace(item, keyMap, valueMap));
+      }
+
+      // Object – single pass
+      const result = {};
+      for (const key in obj) {
+        if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+
+        let newValue;
+        if (keyMap && Object.prototype.hasOwnProperty.call(keyMap, key)) {
+          // Key match → replace whole value
+          newValue = keyMap[key];
+          // Then apply value mapping (exact + substring if string)
+          newValue = applyValueReplace(newValue, valueMap);
+        } else {
+          // No key match → recurse
+          newValue = deepReplace(obj[key], keyMap, valueMap);
+        }
+        result[key] = newValue;
+      }
+      return result;
+    }
+
+    function processReplace() {
+      const errorEl = document.getElementById('error');
+      const originalText = document.getElementById('original').value.trim();
+      const mappingText = document.getElementById('mapping').value.trim();
+      const valueMappingText = document.getElementById('valueMapping').value.trim();
+      const resultEl = document.getElementById('result');
+
+      errorEl.textContent = '';
+      resultEl.value = '';
+
+      if (!originalText) {
+        errorEl.textContent = 'Please paste original JSON';
+        return;
+      }
+
+      let original, keyMap = {}, valueMap = {};
+      try {
+        original = JSON.parse(originalText);
+      } catch (e) {
+        errorEl.textContent = '❌ Invalid Original JSON';
+        return;
+      }
+
+      if (mappingText) {
+        try {
+          keyMap = JSON.parse(mappingText);
+          if (typeof keyMap !== 'object' || Array.isArray(keyMap)) throw new Error();
+        } catch (e) {
+          errorEl.textContent = '❌ Invalid Key Replace Mapping';
+          return;
+        }
+      }
+
+      if (valueMappingText) {
+        try {
+          valueMap = JSON.parse(valueMappingText);
+          if (typeof valueMap !== 'object' || Array.isArray(valueMap)) throw new Error();
+        } catch (e) {
+          errorEl.textContent = '❌ Invalid Value Replace Mapping';
+          return;
+        }
+      }
+
+      try {
+        const replaced = deepReplace(original, keyMap, valueMap);
+        resultEl.value = JSON.stringify(replaced, null, 2);
+      } catch (e) {
+        errorEl.textContent = '❌ Something went wrong';
+      }
+    }
+
+    function copyResult() {
+      const resultEl = document.getElementById('result');
+      if (!resultEl.value) return;
+      navigator.clipboard.writeText(resultEl.value).then(() => {
+        const orig = resultEl.placeholder;
+        resultEl.placeholder = '✅ Copied!';
+        setTimeout(() => { resultEl.placeholder = orig || ''; }, 1200);
+      });
+    }
+
+    function clearAll() {
+      document.getElementById('original').value = '';
+      document.getElementById('mapping').value = '';
+      document.getElementById('valueMapping').value = '';
+      document.getElementById('result').value = '';
+      document.getElementById('error').textContent = '';
+    }
+
+    // Demo data (includes substring example)
+    window.onload = function () {
+      document.getElementById('original').value = JSON.stringify({
+        "abc": { "cde": 123 },
+        "cde": 555,
+        "aaa": [{ "cde": 1, "active": true }],
+        "flag": false,
+        "empty": null,
+        "text": "hello",
+        "substringTest": "aabbccaa"
+      }, null, 2);
+
+      document.getElementById('mapping').value = JSON.stringify({
+        "cde": "abc",
+        "abc": 999
+      }, null, 2);
+
+      document.getElementById('valueMapping').value = JSON.stringify({
+        555: "REPLACED_555",
+        123: "NEW_123",
+        true: "YES",
+        false: "NO",
+        null: "EMPTY",
+        "hello": "WORLD",
+        "a": "b"          // ← substring example: "aabbccaa" becomes "bbbbccbb"
+      }, null, 2);
+    };
+  </script>
+</body>
+
+</html>
