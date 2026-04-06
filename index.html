@@ -112,6 +112,16 @@
       cursor: pointer;
     }
 
+    .file-upload {
+      margin: 8px 16px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .file-upload input[type="file"] {
+      margin-top: 4px;
+    }
+
     @media (max-width: 600px) {
       body {
         padding: 12px;
@@ -140,6 +150,10 @@
     <details open>
       <summary>1. Original JSON</summary>
       <textarea id="original" placeholder='Paste your original JSON here...'></textarea>
+      <div class="file-upload">
+        Or load from file:
+        <input type="file" id="fileInput" accept=".json" onchange="loadJsonFile(event)">
+      </div>
     </details>
 
     <details open>
@@ -170,11 +184,28 @@
     </details>
 
     <p style="text-align:center; margin-top:20px; color:#666; font-size:0.85rem;">
-      Deep recursive replacement • keys + values • all data types • substring on strings • objects • arrays • nested
+      Deep recursive replacement • keys + values • all data types • substring on strings • file upload supported
     </p>
   </div>
 
   <script>
+    function loadJsonFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (ev) {
+        document.getElementById('original').value = ev.target.result;
+      };
+      reader.onerror = function () {
+        document.getElementById('error').textContent = '❌ Could not read file';
+      };
+      reader.readAsText(file);
+
+      // Reset file input so same file can be selected again
+      e.target.value = '';
+    }
+
     function applyValueReplace(val, valueMap) {
       if (!valueMap) return val;
 
@@ -239,7 +270,7 @@
       resultEl.value = '';
 
       if (!originalText) {
-        errorEl.textContent = 'Please paste original JSON';
+        errorEl.textContent = 'Please paste original JSON or load a file';
         return;
       }
 
@@ -295,9 +326,10 @@
       document.getElementById('valueMapping').value = '';
       document.getElementById('result').value = '';
       document.getElementById('error').textContent = '';
+      document.getElementById('fileInput').value = '';
     }
 
-    // Demo data (includes substring example)
+    // Demo data
     window.onload = function () {
       document.getElementById('original').value = JSON.stringify({
         "abc": { "cde": 123 },
@@ -321,7 +353,7 @@
         false: "NO",
         null: "EMPTY",
         "hello": "WORLD",
-        "a": "b"          // ← substring example: "aabbccaa" becomes "bbbbccbb"
+        "a": "b"
       }, null, 2);
     };
   </script>
